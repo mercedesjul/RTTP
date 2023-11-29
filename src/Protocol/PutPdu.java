@@ -17,26 +17,12 @@ public class PutPdu extends Pdu implements Serializable {
     }
 
     public PutPdu(byte[] dataBytes) {
+        PduDataParser parser = new PduDataParser(dataBytes);
 
-        // Length of Filename
-        byte[] fileNameLengthBytes = new byte[4];
-        System.arraycopy(dataBytes, 0, fileNameLengthBytes, 0, fileNameLengthBytes.length);
-        fileNameLength = byteArrayToInt(fileNameLengthBytes);
-
-        // Filename
-        byte[] fileNameBytes = new byte[fileNameLength];
-        System.arraycopy(dataBytes, fileNameLengthBytes.length, fileNameBytes, 0, fileNameLength);
-        fileName = new String(fileNameBytes);
-
-        // Length of data
-        byte[] lengthBytes = new byte[4];
-        System.arraycopy(dataBytes, fileNameLengthBytes.length + fileNameLength, lengthBytes, 0, lengthBytes.length);
-        length = byteArrayToInt(lengthBytes);
-
-        // Data
-        byte[] fileContentBytes = new byte[length];
-        System.arraycopy(dataBytes, fileNameLengthBytes.length + fileNameLength + lengthBytes.length, fileContentBytes,0, length);
-        fileContent = fileContentBytes;
+        fileNameLength = parser.parse4ByteIntData();
+        fileName = parser.parseStringData(fileNameLength);
+        length = parser.parse4ByteIntData();
+        fileContent = parser.parseByteData(length);
 
         contentBytes = serialize();
     }

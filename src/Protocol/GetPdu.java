@@ -2,10 +2,9 @@ package Protocol;
 
 public class GetPdu extends Pdu implements Serializable {
 
-  protected static final byte PDU_IDENTIFIER = 1;
+  protected static final byte PDU_IDENTIFIER = 0x01;
 
   private String fileName;
-
 
   public GetPdu(String filename) {
     fileName = filename;
@@ -14,13 +13,10 @@ public class GetPdu extends Pdu implements Serializable {
   }
 
   public GetPdu(byte[] dataBytes) {
-    byte[] lengthBytes = new byte[4];
-    System.arraycopy(dataBytes, 0, lengthBytes, 0, lengthBytes.length);
-    length = Pdu.byteArrayToInt(lengthBytes);
+    PduDataParser parser = new PduDataParser(dataBytes);
 
-    byte[] filenameBytes = new byte[length];
-    System.arraycopy(dataBytes, lengthBytes.length, filenameBytes, 0, length);
-    fileName = new String(filenameBytes);
+    length = parser.parse4ByteIntData();
+    fileName = parser.parseStringData(length);
 
     contentBytes = serialize();
   }

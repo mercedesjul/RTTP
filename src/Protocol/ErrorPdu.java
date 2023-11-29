@@ -30,14 +30,11 @@ public class ErrorPdu extends Pdu implements Serializable {
   }
 
   public ErrorPdu(byte[] dataBytes) {
-    errorCode = dataBytes[0];
-    byte[] lengthBytes = new byte[4];
-    System.arraycopy(dataBytes, 1, lengthBytes, 0, lengthBytes.length);
-    length = Pdu.byteArrayToInt(lengthBytes);
+    PduDataParser parser = new PduDataParser(dataBytes);
 
-    byte[] errorStringBytes = new byte[length];
-    System.arraycopy(dataBytes, lengthBytes.length + 1, errorStringBytes, 0, length);
-    errorString = new String(errorStringBytes);
+    errorCode = parser.parseSingleByte();
+    length = parser.parse4ByteIntData();
+    errorString = parser.parseStringData(length);
 
     contentBytes = serialize();
   }
