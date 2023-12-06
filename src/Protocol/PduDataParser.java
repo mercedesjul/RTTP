@@ -18,6 +18,22 @@ public class PduDataParser {
     offset += length;
     return data;
   }
+  public byte[] readBytesToDelimiter(byte delimiter) {
+    byte[] bytes = new byte[0];
+    byte b;
+    while ((b = parseSingleByte()) != delimiter) {
+      bytes = Pdu.addByteElement(bytes, b);
+    }
+    return bytes;
+  }
+
+  public byte[][] readBytesToDelimiterRepeated(byte delimiter, int repeat_count) {
+    byte[][] bytes = new byte[repeat_count][];
+    for (int i = 0; repeat_count > 0; i++, repeat_count--){
+      bytes[i] = readBytesToDelimiter(delimiter);
+    }
+    return bytes;
+  }
 
   public int parse4ByteIntData() {
     return Pdu.byteArrayToInt(parseByteData(4));

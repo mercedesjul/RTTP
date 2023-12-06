@@ -2,7 +2,9 @@ package Protocol;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Array;
 import java.lang.reflect.MalformedParametersException;
+import java.nio.file.Path;
 import java.util.Arrays;
 
 abstract public class Pdu {
@@ -87,6 +89,17 @@ abstract public class Pdu {
     return byteArray;
   }
 
+  public static String[] addStringElement(String[] array, String string) {
+    String[] newArray = Arrays.copyOf(array, array.length + 1);
+    newArray[array.length] = string;
+    return newArray;
+  }
+  public static byte[] addByteElement(byte[] array, byte b) {
+    byte[] newArray = Arrays.copyOf(array, array.length + 1);
+    newArray[array.length] = b;
+    return newArray;
+  }
+
 
   /**
    * @param bytes Bytes representing a PDU
@@ -106,6 +119,7 @@ abstract public class Pdu {
       case GetPdu.PDU_IDENTIFIER -> new GetPdu(dataBytes);
       case PutPdu.PDU_IDENTIFIER -> new PutPdu(dataBytes);
       case ErrorPdu.PDU_IDENTIFIER -> new ErrorPdu(dataBytes);
+      case DirectoryPdu.PDU_IDENTIFIER -> new DirectoryPdu(dataBytes);
 
       default -> throw new IllegalStateException("PduIdentifier not recognized: " + bytes[4]);
     };
