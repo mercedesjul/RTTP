@@ -8,17 +8,14 @@ import Protocol.PutPdu;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.Socket;
-import java.util.Objects;
 
-public class FileReceiverThread implements Runnable {
-
-  Socket socket;
+public class FileReceiverThread extends FileThread implements Runnable {
   boolean isDirectory;
   String filePath;
   String savePath;
 
   public FileReceiverThread(Socket socket, String filePath, String savePath) {
-    this.socket = Objects.requireNonNull(socket);
+    super(socket);
     this.filePath = filePath;
     this.savePath = savePath;
   }
@@ -28,15 +25,20 @@ public class FileReceiverThread implements Runnable {
       Pdu responsePdu = sendGetPdu();
       if (responsePdu instanceof ErrorPdu) {
         System.out.printf(
-                "Error code %d occurred with Error Message \"%s\"",
+                "%sError code %d occurred with Error Message \"%s\"",
+                getThreadIdStringPrefix(),
                 ((ErrorPdu) responsePdu).getErrorCode(),
                 ((ErrorPdu) responsePdu).getErrorString()
         );
         return -1;
       }
+      PutPdu putPdu = ((PutPdu) responsePdu);
       FileOutputStream fileOutputStream = new FileOutputStream(savePath);
-      System.out.printf("Writing to %s%n", savePath);
-      fileOutputStream.write(((PutPdu) responsePdu).getFileContent());
+      System.out.printf("%sWriting to %s%n", getThreadIdStringPrefix(), savePath);
+      long start = System.currentTimeMillis();
+      Pdu.stream(fileOutputStream, putPdu.getContentInputStream(), putPdu.getFileLength());
+      long end = System.currentTimeMillis();
+      System.out.printf("%sFinished writing to %s in %s milliseconds%n", getThreadIdStringPrefix(), savePath, end - start);
       fileOutputStream.close();
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -45,21 +47,14 @@ public class FileReceiverThread implements Runnable {
   }
 
   public Pdu sendGetPdu() {
-    byte[] data;
     try {
       (new GetPdu(filePath, isDirectory)).send(socket.getOutputStream());
-      while (true) {
-        if (socket.getInputStream().available() > 0) {
-          data = socket.getInputStream().readNBytes(socket.getInputStream().available());
-          break;
-        }
-      }
+      return Pdu.createPduFromInputStream(socket.getInputStream());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-    return Pdu.createPduFromByteArray(data);
-  }
 
+  }
   @Override
   public void run() {
     receiveFile();

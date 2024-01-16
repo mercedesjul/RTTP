@@ -3,6 +3,8 @@ package FileThreads;
 import Protocol.*;
 import Protocol.ErrorPdu.ERROR_CODES;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.file.*;
@@ -24,18 +26,34 @@ public class FileSenderThread extends FileThread implements Runnable {
     if (!Files.isDirectory(path)) {
       ErrorPdu errorPdu = sendErrorPdu(ERROR_CODES.NOT_A_DIRECTORY);
       System.out.printf(
-              "Directory %s not found, sending Error Code %d with Message %s%n",
-              path, errorPdu.getErrorCode(), errorPdu.getErrorString()
+              "%sDirectory %s not found, sending Error Code %d with Message %s%n",
+              getThreadIdStringPrefix(), path, errorPdu.getErrorCode(), errorPdu.getErrorString()
       );
       return 1;
     }
     try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(path)) {
+      ArrayList<String> directoryPaths = new ArrayList<>();
       ArrayList<String> filePaths = new ArrayList<>();
       directoryStream.forEach(
-              (Path filePath) -> filePaths.add(filePath.toString())
+              (Path filePath) -> {
+                if (filePath.toFile().isDirectory()) {
+                   directoryPaths.add(filePath.toString());
+                } else {
+                  filePaths.add(filePath.toString());
+                }
+              }
       );
-      DirectoryPdu directoryPdu = new DirectoryPdu(directoryName, filePaths.toArray(String[]::new));
-      System.out.printf("Sending Directory with files:%n%s%n", Arrays.toString(directoryPdu.getFilePaths()));
+      DirectoryPdu directoryPdu = new DirectoryPdu(
+              directoryName,
+              filePaths.toArray(String[]::new),
+              directoryPaths.toArray(String[]::new)
+      );
+      System.out.printf(
+              "%sSending Directory with files:%n%s%nand subdirectories:%s%n",
+              getThreadIdStringPrefix(),
+              Arrays.toString(directoryPdu.getFilePaths()),
+              Arrays.toString(directoryPdu.getSubDirectoryPaths())
+      );
       directoryPdu.send(socket.getOutputStream());
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -45,13 +63,14 @@ public class FileSenderThread extends FileThread implements Runnable {
 
   public int sendFile(String fileName, String filePath) {
     try {
-      byte[] fileBytes = Files.readAllBytes(Paths.get(filePath));
-      if (fileBytes.length < 1) {
+      File file = new File(filePath);
+      if (file.length() < 1) {
         sendErrorPdu(ERROR_CODES.FILE_EMPTY);
         return 1;
       }
-      PutPdu putPdu = new PutPdu(fileName, fileBytes);
-      System.out.printf("Sending %s with %d bytes%n", fileName, fileBytes.length);
+      FileInputStream fileInputStream = new FileInputStream(file);
+      PutPdu putPdu = new PutPdu(fileName, (int) file.length(), fileInputStream);
+      System.out.printf("%sSending %s with %d bytes%n", getThreadIdStringPrefix(), fileName, file.length());
       putPdu.send(socket.getOutputStream());
     } catch (IOException e) {
       ErrorPdu errorPdu = sendErrorPdu(ERROR_CODES.FILE_NOT_FOUND);
@@ -65,19 +84,28 @@ public class FileSenderThread extends FileThread implements Runnable {
   }
   public void awaitRequest() {
     try {
-      byte[] data;
-      while(true) {
-        if (socket.getInputStream().available() > 0) {
-          data = socket.getInputStream().readNBytes(socket.getInputStream().available());
-          break;
-        }
+      System.out.println(getThreadIdStringPrefix() + "Awaiting Request");
+      Pdu requestPdu = Pdu.createPduFromInputStream(socket.getInputStream());
+      if (requestPdu instanceof ErrorPdu) {
+        ErrorPdu errorPdu = sendErrorPdu(ERROR_CODES.PARSE_ERROR);
+        System.out.printf(
+                "%sCould not parse Pdu. Sending Error Code %d with Message %s%n",
+                getThreadIdStringPrefix(), errorPdu.getErrorCode(), errorPdu.getErrorString()
+        );
+        return;
       }
-      GetPdu getPdu = (GetPdu) Pdu.createPduFromByteArray(data);
-      System.out.printf("%s \"%s\" got requested%n", getPdu.isDirectory() ? "Directory" : "File", getPdu.getPath());
-      if (getPdu.isDirectory()) {
-        sendDirectoryPdu(getPdu.getPath());
+      System.out.printf(
+              "%s%s \"%s\" got requested%n",
+              getThreadIdStringPrefix(),
+              ((GetPdu) requestPdu).isDirectory() ? "Directory" : "File",
+              ((GetPdu) requestPdu).getPath()
+      );
+      if (((GetPdu) requestPdu).isDirectory()) {
+        sendDirectoryPdu(((GetPdu) requestPdu).getPath());
       } else {
-        sendFile(getPdu.getJustFileName(), getPdu.getPath());
+        sendFile(
+                Pdu.getExplodedLastElement(((GetPdu) requestPdu).getPath(), "\\\\"),
+                ((GetPdu) requestPdu).getPath());
       }
     } catch (IOException e) {
       throw new RuntimeException(e);

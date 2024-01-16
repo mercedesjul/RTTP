@@ -1,53 +1,47 @@
 package Protocol;
 
+import java.io.*;
+
 public class PutPdu extends Pdu implements Serializable {
 
     protected static final byte PDU_IDENTIFIER = 0x02;
     private String fileName;
-    private int fileNameLength;
-    private byte[] fileContent;
+    private long fileLength;
+    private InputStream contentInputStream;
 
 
-    public PutPdu(String fileName, byte[] fileContent) {
+    public PutPdu(String fileName, int fileLength, InputStream contentInputStream) {
         this.fileName = fileName;
-        fileNameLength = fileName.getBytes().length;
-        this.fileContent = fileContent;
-        length = fileContent.length;
-        contentBytes = serialize();
+        this.fileLength = fileLength;
+        this.contentInputStream = contentInputStream;
     }
 
-    public PutPdu(byte[] dataBytes) {
-        PduDataParser parser = new PduDataParser(dataBytes);
-
-        fileNameLength = parser.parse4ByteIntData();
-        fileName = parser.parseStringData(fileNameLength);
-        length = parser.parse4ByteIntData();
-        fileContent = parser.parseByteData(length);
-
-        contentBytes = serialize();
+    public PutPdu(InputStream inputStream) throws IOException {
+        DataInputStream dataInputStream = new DataInputStream(inputStream);
+        this.fileName = dataInputStream.readUTF();
+        this.fileLength = dataInputStream.readLong();
+        this.contentInputStream = inputStream;
     }
 
     public String getFileName() {
         return fileName;
     }
 
-    public int getFileNameLength() {
-        return fileNameLength;
+    public long getFileLength() {
+        return fileLength;
     }
 
-    public byte[] getFileContent() {
-        return fileContent;
+    public InputStream getContentInputStream() {
+        return contentInputStream;
     }
 
     @Override
-    public byte[] serialize() {
-        return Pdu.concatByteArrays(
-                getSuperHeader(),
-                new byte[]{PDU_IDENTIFIER},
-                Pdu.intToByteArray(fileNameLength),
-                fileName.getBytes(),
-                Pdu.intToByteArray(length),
-                fileContent
-        );
+    public void send(OutputStream outputStream) throws IOException {
+        sendSuperHeader(outputStream);
+        DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+        dataOutputStream.writeByte(PDU_IDENTIFIER);
+        dataOutputStream.writeUTF(fileName);
+        dataOutputStream.writeLong(fileLength);
+        stream(outputStream, contentInputStream, fileLength);
     }
 }

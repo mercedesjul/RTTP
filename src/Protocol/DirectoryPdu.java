@@ -1,71 +1,68 @@
 package Protocol;
 
-import java.io.IOException;
+import java.io.*;
 
-public class DirectoryPdu extends Pdu implements Serializable {
+public class DirectoryPdu extends Pdu  {
 
   protected static final byte PDU_IDENTIFIER = 0x04;
-  private static final byte FILENAME_DELIMITER = 0x0;
 
   private String directoryName;
+  private final long fileCount;
 
   private String[] filePaths = new String[0];
 
-  private int fileCount = 0;
+  private final long subDirectoryCount;
 
-  public DirectoryPdu(String directoryName, String[] filePaths) throws IOException {
-    this.fileCount = filePaths.length;
+  private String[] subDirectoryPaths = new String[0];
+
+
+  public DirectoryPdu(String directoryName, String[] filePaths, String[] subDirectoryPaths) throws IOException {
     this.directoryName = directoryName;
+    this.fileCount = filePaths.length;
     this.filePaths = filePaths;
-    length = directoryName.getBytes().length;
-    contentBytes = serialize();
+    this.subDirectoryCount = subDirectoryPaths.length;
+    this.subDirectoryPaths = subDirectoryPaths;
+
   }
 
-  public DirectoryPdu(byte[] dataBytes) {
-    PduDataParser parser = new PduDataParser(dataBytes);
-    length = parser.parse4ByteIntData();
-    directoryName = parser.parseStringData(length);
-    fileCount = parser.parse4ByteIntData();
-    filePaths = constructFilePath(parser);
+  public DirectoryPdu(InputStream inputStream) throws IOException {
+    DataInputStream dataInputStream = new DataInputStream(inputStream);
+    directoryName = dataInputStream.readUTF();
+    fileCount = dataInputStream.readLong();
+    for (int i = 0; i < fileCount; i++) {
+      filePaths = addStringElement(filePaths, dataInputStream.readUTF());
+    }
+    subDirectoryCount = dataInputStream.readLong();
+    for (int i = 0; i < subDirectoryCount; i++) {
+      subDirectoryPaths =  addStringElement(subDirectoryPaths, dataInputStream.readUTF());
+    }
 
-    contentBytes = serialize();
   }
 
   public String[] getFilePaths() {
     return filePaths;
+  }
+  public String[] getSubDirectoryPaths() {
+    return subDirectoryPaths;
   }
 
   public String getDirectoryName() {
     return directoryName;
   }
 
-  private String[] constructFilePath(PduDataParser parser) {
-    String[] filePaths = new String[0];
-    byte[][] fileNameBytes = parser.readBytesToDelimiterRepeated(FILENAME_DELIMITER, fileCount);
-    for (byte[] b : fileNameBytes) {
-      filePaths = addStringElement(filePaths, new String(b));
-    }
-    return filePaths;
-  }
-
-  private byte[] filePathsToByteArray() {
-    byte[] bytes = new byte[0];
-    byte[] delimiterByte = new byte[]{FILENAME_DELIMITER};
-    for (String filePath: filePaths) {
-      bytes = concatByteArrays(bytes, filePath.getBytes(), delimiterByte);
-    }
-    return bytes;
-  }
-
   @Override
-  public byte[] serialize() {
-    return Pdu.concatByteArrays(
-            Pdu.getSuperHeader(),
-            new byte[]{PDU_IDENTIFIER},
-            Pdu.intToByteArray(length),
-            directoryName.getBytes(),
-            Pdu.intToByteArray(fileCount),
-            filePathsToByteArray()
-    );
+  public void send(OutputStream outputStream) throws IOException {
+    sendSuperHeader(outputStream);
+    DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+    dataOutputStream.writeByte(PDU_IDENTIFIER);
+    dataOutputStream.writeUTF(directoryName);
+    dataOutputStream.writeLong(fileCount);
+    for (String filePath : filePaths) {
+      dataOutputStream.writeUTF(filePath);
+    }
+    dataOutputStream.writeLong(subDirectoryCount);
+    for (String directoryPath : subDirectoryPaths) {
+      dataOutputStream.writeUTF(directoryPath);
+    }
   }
 }

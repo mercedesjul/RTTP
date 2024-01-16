@@ -12,7 +12,7 @@ public class FileSender {
   private final ServerSocket serverSocket;
   private final ArrayList<Thread> connections = new ArrayList<>();
 
-  public static void main(String[] args) throws IOException{
+  public static void main(String[] args) throws IOException {
     if (args.length < 1) {
       System.out.println("Usage: filesender port");
     }

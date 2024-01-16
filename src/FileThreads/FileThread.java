@@ -17,6 +17,10 @@ abstract public class FileThread implements Runnable {
 
   }
 
+  String getThreadIdStringPrefix() {
+    return String.format("[Thread %d]>", Thread.currentThread().threadId());
+  }
+
   ErrorPdu sendErrorPdu(ERROR_CODES errorCode) {
     ErrorPdu errorPdu = new ErrorPdu(errorCode);
     try {
